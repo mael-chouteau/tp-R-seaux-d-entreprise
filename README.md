@@ -805,10 +805,22 @@ Tests :
 
 Reset machine id après clone de VM.
 ```bash
-sudo rm -f /etc/machine-id
-sudo dbus-uuidgen --ensure=/etc/machine-id
+sudo nano /etc/netplan/50-cloud-init.yaml
 ```
+Ajoutez la dernière ligne
+```bash
+network:
+  version: 2
+  ethernets:
+    enp0s3:
+      dhcp4: true
+      dhcp-identifier: mac  # <-- Ajoute cette ligne ici
+```
+Recharger netplan
 
+```bash
+sudo netplan apply
+```
 ### Ce qui est attendu dans le rapport
 
 - Fiche de **plan d’adressage** (tableaux complétés pour vos valeurs \(X\) et \(Y\)).
