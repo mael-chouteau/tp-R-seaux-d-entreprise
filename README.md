@@ -525,21 +525,72 @@ dig @10.X.Y.1 srv.x.lab.local
 
 ---
 
-### IV.4 LLDAP (LDAP avec interface web)
+### IV.4 LLDAP (depuis [le guide](https://blog.stephane-robert.info/docs/services/identite/lldap/))
 
-Plusieurs implémentations sont possibles ; l’idée est de :
+## Installation des pré-requis
+### 1. SQLite3
 
-- Déployer un annuaire LDAP avec interface web.
-- Définir un **base DN** cohérent (ex. `dc=x,dc=lab,dc=local`).
-- Créer des OU (`ou=users`, `ou=groups`) et quelques comptes de test.
+LLDAP utilise **SQLite** comme moteur de base de données par défaut. Pour l'installer (sur Debian/Ubuntu) :
 
-Points à documenter :
+```bash
+sudo apt update && sudo apt install sqlite3 libsqlite3-dev
+```
 
-- Commandes / procédures d’installation.
-- URL d’accès à l’interface web (ex. `https://srv.x.lab.local:port`).
-- Exemples de DNs pour les comptes (ex. `uid=alice,ou=users,dc=x,dc=lab,dc=local`).
+### 2. mkcert
 
-(1 groupe `netadmin`, 1 groupe `students`, 2–3 comptes).
+Indispensable pour générer localement des certificats **TLS** auto-signés de manière simple :
+
+```bash
+sudo apt install mkcert
+```
+
+### 3. Outils LDAP
+
+Pour tester et requêter votre futur serveur, installez les utilitaires clients :
+
+```bash
+sudo apt install ldap-utils
+```
+
+---
+
+## Installation de LLDAP
+### Ajout du dépôt (Repository)
+Exécutez ces commandes pour configurer la clé GPG et la source du dépôt :
+
+```bash
+# Ajout de la clé de signature
+curl -fsSL https://download.opensuse.org/repositories/home:Masgalor:LLDAP/xUbuntu_24.04/Release.key | \
+  gpg --dearmor | sudo tee /etc/apt/trusted.gpg.d/lldap.gpg > /dev/null
+
+# Ajout du dépôt LLDAP
+echo "deb http://download.opensuse.org/repositories/home:/Masgalor:/LLDAP/xUbuntu_24.04/ /" | \
+  sudo tee /etc/apt/sources.list.d/home:Masgalor:LLDAP.list > /dev/null
+
+```
+
+### Installation du paquet
+
+Une fois le dépôt configuré, mettez à jour votre cache et installez LLDAP :
+
+```bash
+sudo apt update
+sudo apt install lldap
+
+```
+
+---
+
+## Vérification de l'installation
+
+Pour confirmer que tout est opérationnel, vérifiez la version installée :
+
+```bash
+lldap --version
+
+```
+
+> **Note :** Si un numéro de version s'affiche sans erreur, votre serveur LLDAP est prêt à être configuré !
 
 ---
 
