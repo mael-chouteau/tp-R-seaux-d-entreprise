@@ -88,7 +88,7 @@ _5. Le **routeur de bordure** est relié à l’**ASA 5512-X**, qui assure le **
 | Rôle / Équipement              | VLAN | Réseau / Masque     | Adresse IP (exemple)         | Passerelle      | Interface / Port               | Commentaire                                      |
 |--------------------------------|------|----------------------|------------------------------|-----------------|--------------------------------|-------------------------------------------------|
 | PC Data étudiant `PC_XY`       | 10   | 10.X.Y.0/24          | 10.X.Y.10                    | 10.X.Y.254      | `SW_XY` Fa0/1 (access)         | Adresse fournie par DHCP Kea (scope Data)       |
-| SW_XY (SVI Mgmt éventuelle)    | 20   | 10.X.20.0/24         | 10.X.20.(100+Y)              | 10.X.20.254     | Vlan 20                        | IP de management du switch                      |
+| SW_XY (SVI Mgmt)               | 10   | 10.X.Y.0/24          | 10.X.Y.253                   | 10.X.Y.254      | Vlan 10                        | IP de management du switch                      |
 | R_XY – sous-if Data            | 10   | 10.X.Y.0/24          | 10.X.Y.254                   | —               | `G0/0.X` (dot1Q 10)            | Passerelle Data étudiante                       |
 | R_XY – sous-if Mgmt            | 20   | 10.X.20.0/24         | 10.X.20.254                  | —               | `G0/0.20` (dot1Q 20)           | Passerelle Management                           |
 | R_XY – interface Transit       | —    | 172.16.X.0/24        | 172.16.X.(10+Y)              | —               | `G0/1`                         | Lien vers switch de transit                     |
@@ -108,6 +108,55 @@ _5. Le **routeur de bordure** est relié à l’**ASA 5512-X**, qui assure le **
 ---
 
 ## III. Guide de configuration pas-à-pas (Cisco IOS / ASA)
+
+### III.0 Remise à zéro et sauvegarde des configurations
+
+Avant de commencer la configuration, assurez-vous que les équipements sont dans un état propre et que vous savez **sauvegarder** puis **restaurer** vos configurations.
+
+#### III.0.1 Remettre un switch/routeur Cisco à zéro
+
+Depuis le mode privilégié :
+
+```plaintext
+enable
+erase startup-config
+reload
+```
+
+Au redémarrage, répondre **No** si l’assistant de configuration interactive (`auto-config` ou `setup`) se lance.
+
+#### III.0.2 Sauvegarder la configuration en NVRAM
+
+Une fois la configuration terminée (ou à un point stable), sauvegardez-la dans la NVRAM :
+
+```plaintext
+enable
+write memory
+! ou
+copy running-config startup-config
+```
+
+#### III.0.3 Exporter / restaurer une configuration via TFTP (optionnel)
+
+Si un serveur TFTP est disponible sur votre VLAN Data, vous pouvez archiver vos configs :
+
+```plaintext
+! Sauvegarder la configuration courante vers un serveur TFTP
+enable
+copy running-config tftp:
+ Address or name of remote host []? 10.X.Y.1
+ Destination filename [running-config]? R_XY.cfg
+
+! Restaurer une configuration depuis un serveur TFTP
+enable
+copy tftp: running-config
+ Address or name of remote host []? 10.X.Y.1
+ Source filename []? R_XY.cfg
+```
+
+> **Bonnes pratiques** :  
+> - Sauvegarder régulièrement (`write memory`) à chaque étape importante.  
+> - Conserver une **copie propre minimale** (config de base) et une **copie finale** (config complète commentée).
 
 ### III.1 Switch Cisco 2960 — VLANs, Access, Trunk
 
@@ -152,7 +201,24 @@ end
 write memory
 ```
 
-#### III.1.3 Configuration du port access pour le PC
+#### III.1.3 Interface de management du switch (SVI Vlan10)
+
+```plaintext
+configure terminal
+
+interface Vlan10
+ ip address 10.X.Y.253 255.255.255.0
+ no shutdown
+
+ip default-gateway 10.X.Y.254
+
+end
+write memory
+```
+
+> Cette interface permet d’administrer `SW_XY` en IPv4 (SSH, HTTP/HTTPS si activé) via le réseau Data `10.X.Y.0/24`.
+
+#### III.1.4 Configuration du port access pour le PC
 
 Supposons que le PC de l’étudiant soit connecté sur `FastEthernet0/1` :
 
@@ -174,7 +240,7 @@ write memory
 > - Vérifier que le VLAN 10 existe : `show vlan brief`.  
 > - Si le PC ne reçoit pas d’adresse IP, vérifier que la carte réseau est bien configurée en DHCP et que Kea voit les requêtes.
 
-#### III.1.4 Configuration du port trunk vers le routeur
+#### III.1.5 Configuration du port trunk vers le routeur
 
 Supposons que le lien vers `R_XY` soit `FastEthernet0/24` :
 
@@ -344,18 +410,15 @@ Les services sont répartis sur plusieurs VMs Linux (ex. Debian) situées dans l
 - VM FTP/LDAP.
 - VM client.
 
-### IV.1 Hypothèses générales
+### IV.1 Plan générale
 
 - Système : Debian (ou distribution équivalente).
-- **VM DNS/DHCP** : `dnsdhcp-xY`, IP `10.X.Y.20` (LAN Data).
-- **VM supervision (Zabbix)** : `zabbix-xY`, IP `10.X.Y.21`.
-- **VM FTP/LDAP** : `ftp-ldap-xY`, IP `10.X.Y.22`.
-- **VM client** : `client_XY`, IP en DHCP dans le scope Data (par exemple `10.X.Y.30`).
+- **VM DNS/DHCP** : `dnsdhcp-xY`, IP `10.X.Y.1` (LAN Data).
+- **VM supervision (Zabbix)** : `zabbix-xY`, IP `10.X.Y.2`.
+- **VM FTP/LDAP** : `ftp-ldap-xY`, IP `10.X.Y.3`.
+- **VM client** : `client_XY`, IP en DHCP dans le scope Data (par exemple `10.X.Y.4`).
 - Passerelle par défaut des VMs : `10.X.Y.254`.
 - Noms de domaine : `x.lab.local` (à adapter à votre groupe).
-
-> **Pré-requis** : s’assurer que la VM peut joindre le routeur, l’ASA et Internet (ping, traceroute) avant d’installer les services.
-
 ---
 
 ### IV.2 Kea DHCP (JSON)
@@ -386,7 +449,7 @@ Fichier principal (souvent `/etc/kea/kea-dhcp4.conf`) — exemple simplifié :
       ],
       "option-data": [
         { "name": "router", "data": "10.X.Y.254" },
-        { "name": "domain-name-servers", "data": "10.X.Y.20" },
+        { "name": "domain-name-servers", "data": "10.X.Y.1" },
         { "name": "domain-name", "data": "x.lab.local" }
       ]
     },
@@ -397,7 +460,7 @@ Fichier principal (souvent `/etc/kea/kea-dhcp4.conf`) — exemple simplifié :
       ],
       "option-data": [
         { "name": "router", "data": "10.X.20.254" },
-        { "name": "domain-name-servers", "data": "10.X.Y.20" },
+        { "name": "domain-name-servers", "data": "10.X.Y.1" },
         { "name": "domain-name", "data": "x.lab.local" }
       ]
     }
@@ -456,8 +519,8 @@ $TTL 86400
         86400 )    ; Minimum
 
 @       IN NS   ns1.x.lab.local.
-ns1     IN A    10.X.Y.20
-srv     IN A    10.X.Y.20
+ns1     IN A    10.X.Y.1
+srv     IN A    10.X.Y.1
 core    IN A    172.16.X.1
 asa     IN A    172.16.X.254
 ```
@@ -468,7 +531,7 @@ Vérifications :
 sudo named-checkconf
 sudo named-checkzone x.lab.local /etc/bind/db.x.lab.local
 sudo systemctl restart bind9
-dig @10.X.Y.20 srv.x.lab.local
+dig @10.X.Y.1 srv.x.lab.local
 ```
 
 ---
@@ -487,7 +550,7 @@ Points à documenter :
 - URL d’accès à l’interface web (ex. `https://srv.x.lab.local:port`).
 - Exemples de DNs pour les comptes (ex. `uid=alice,ou=users,dc=x,dc=lab,dc=local`).
 
-> **Recommandation pédagogique** : imposez un petit schéma minimal (1 groupe `netadmin`, 1 groupe `students`, 2–3 comptes) pour homogénéiser les tests ProFTPD.
+(1 groupe `netadmin`, 1 groupe `students`, 2–3 comptes).
 
 ---
 
@@ -509,7 +572,7 @@ Exemple (extrait conceptuel) :
 
 ```plaintext
 <IfModule mod_ldap.c>
-  LDAPServer "ldap://10.X.Y.20"
+  LDAPServer "ldap://10.X.Y.3"
   LDAPBindDN "cn=admin,dc=x,dc=lab,dc=local" "motdepasse"
   LDAPUsers "ou=users,dc=x,dc=lab,dc=local" "uid=%u"
 </IfModule>
@@ -572,7 +635,7 @@ Tests :
   - Depuis `PC_XY` ou la VM, lancer :
     - `dig srv.x.lab.local`
     - `dig core.x.lab.local`
-    - `dig -x 10.X.Y.20`
+    - `dig -x 10.X.Y.1`
   - Vérifier que les réponses correspondent à votre plan IP.
 
 - **LLDAP** :
@@ -606,31 +669,22 @@ Tests :
 - **(2 pts)** : Interfaces ASA correctly configurées (inside/outside, IP, security-level, routes).  
 - **(2 pts)** : NAT fonctionnel permettant un accès "Internet" depuis les LANs internes.
 
-### 4. Services Kea / Bind9 / LLDAP / ProFTPD (4 pts)
+### 4. Services Kea / Bind9 / LLDAP / ProFTPD (6 pts)
 
-- **(2 pts)** : Kea & Bind9 opérationnels (clients obtiennent IP + résolution de noms OK).  
-- **(2 pts)** : LLDAP & ProFTPD intégrés (auth LDAP fonctionnelle, tests FTP concluants).
-
-### 5. Documentation, tests & autonomie (2 pts)
-
-- **(1 pt)** : Procédure de tests claire (liste de commandes show / ping / dig / logs) + preuves (captures).  
-- **(1 pt)** : Niveau d’autonomie, clarté du rapport, configs commentées.
+- **(3 pts)** : Kea & Bind9 opérationnels (clients obtiennent IP + résolution de noms OK).  
+- **(3 pts)** : LLDAP & ProFTPD intégrés (auth LDAP fonctionnelle, tests FTP concluants).
 
 ### Pénalités / bonus
 
-- **Pénalités possibles** :
-  - -1 à -2 pts pour un manque de documentation ou de preuves.
-  - -1 pt pour configurations manifestement copiées sans adaptation à \(X\)/\(Y\).
 - **Bonus possibles** :
   - +1 pt pour documentation particulièrement soignée (diagrammes, runbook).
-  - +1 pt pour mise en place d’éléments supplémentaires justifiés (supervision basique, logs corrélés, etc.).
+  - +1 pt pour mise en place d’éléments supplémentaires justifiés (Routage inter entreprises).
 
 ---
 
-### Livrables attendus
+### Ce qui est attendu dans le rapport
 
 - Fiche de **plan d’adressage** (tableaux complétés pour vos valeurs \(X\) et \(Y\)).
-- Schémas logique et physique.
 - Extraits de **configurations Cisco/ASA**, Kea, Bind9, LLDAP, ProFTPD (commentés).
 - **Recette de tests** (liste de commandes + résultats) et conclusions.
 
