@@ -802,6 +802,13 @@ Tests :
 
 ---
 
+
+Reset machine id après clone de VM.
+```bash
+sudo rm -f /etc/machine-id
+sudo dbus-uuidgen --ensure=/etc/machine-id
+```
+
 ### Ce qui est attendu dans le rapport
 
 - Fiche de **plan d’adressage** (tableaux complétés pour vos valeurs \(X\) et \(Y\)).
