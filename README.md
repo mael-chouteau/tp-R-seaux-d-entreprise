@@ -87,12 +87,12 @@ _5. Le **routeur de bordure** est relié à l’**ASA 5512-X**, qui assure le **
 
 | Rôle / Équipement              | VLAN | Réseau / Masque     | Adresse IP (exemple)         | Passerelle      | Interface / Port               | Commentaire                                      |
 |--------------------------------|------|----------------------|------------------------------|-----------------|--------------------------------|-------------------------------------------------|
-| PC Data étudiant `PC_XY`       | 10   | 10.X.Y.0/24          | 10.X.Y.10                    | 10.X.Y.254      | `SW_XY` Fa0/1 (access)         | Adresse fournie par DHCP Kea (scope Data)       |
+| PC Data étudiant `PC_XY`       | 10   | 10.X.Y.0/24          | 10.X.Y.100                    | 10.X.Y.254      | `SW_XY` Fa0/1 (access)         | Adresse fournie par DHCP Kea (scope Data)       |
 | SW_XY (SVI Mgmt)               | 10   | 10.X.Y.0/24          | 10.X.Y.253                   | 10.X.Y.254      | Vlan 10                        | IP de management du switch                      |
 | R_XY – sous-if Data            | 10   | 10.X.Y.0/24          | 10.X.Y.254                   | —               | `G0/0.X` (dot1Q 10)            | Passerelle Data étudiante                       |
-| R_XY – sous-if Mgmt            | 20   | 10.X.20.0/24         | 10.X.20.254                  | —               | `G0/0.20` (dot1Q 20)           | Passerelle Management                           |
-| R_XY – interface Transit       | —    | 172.16.X.0/24        | 172.16.X.(10+Y)              | —               | `G0/1`                         | Lien vers switch de transit                     |
-| Routeur Core – vers transit    | —    | 172.16.X.0/24        | 172.16.X.1                   | —               | `G0/0`                         | Routeur de bordure, OSPF area 0                 |
+| R_XY – sous-if Mgmt            | 20   | 10.X.Y.0/24         | 10.X.Y.252                  | —               | `G0/0.20` (dot1Q 20)           | Passerelle Management                           |
+| R_XY – interface Transit       | —    | 172.16.X.0/24        | 172.16.X.Y              | —               | `G0/1`                         | Lien vers switch de transit                     |
+| Routeur Core – vers transit    | —    | 172.16.X.0/24        | 172.16.X.254                   | —               | `G0/0`                         | Routeur de bordure, OSPF area 0                 |
 | ASA Inside                     | —    | 172.16.X.0/24        | 172.16.X.254                 | —               | `inside`                       | Interface inside, reliée au routeur Core        |
 | ASA Outside                    | —    | (réseau ISP labo)    | donné par enseignant         | passerelle ISP  | `outside`                      | Interface outside, vers Internet                |
 | VM DNS/DHCP                    | 10   | 10.X.Y.0/24          | 10.X.Y.1                     | 10.X.Y.254      | NIC vers VLAN 10 (ou trunk)    | Kea + Bind9                                     |
