@@ -423,48 +423,142 @@ Les services sont répartis sur plusieurs VMs Linux (ex. Ubuntu) situées dans l
 
 ### IV.2 Kea DHCP (JSON)
 
-Installation (exemple Ubuntu) :
+Kea utilise un fichier de configuration **JSON** pour le serveur DHCPv4. La configuration officielle par défaut (ex. `/etc/kea/kea-dhcp4.conf`) est structurée autour du bloc `"Dhcp4"` et peut servir de base : interfaces d’écoute, base des baux, sous-réseaux, options et éventuellement réservations.
+
+#### Installation (Ubuntu / Debian)
 
 ```bash
 sudo apt-get update
 sudo apt-get install -y kea-dhcp4-server
 ```
 
-Fichier principal (souvent `/etc/kea/kea-dhcp4.conf`) — exemple simplifié :
+Le paquet installe un fichier d’exemple. **Sauvegardez-le** puis remplacez ou adaptez le contenu comme ci-dessous.
+
+```bash
+sudo cp /etc/kea/kea-dhcp4.conf /etc/kea/kea-dhcp4.conf.bak
+```
+
+#### Structure du fichier de configuration
+
+Le serveur DHCPv4 Kea ne lit que la section **`"Dhcp4"`**. Les éléments essentiels sont :
+
+| Élément | Rôle |
+|--------|------|
+| `interfaces-config` | Interfaces sur lesquelles Kea écoute (ex. `eth0`). À renseigner obligatoirement. |
+| `control-socket` | Socket Unix pour les commandes de gestion (config-reload, statistiques, etc.). |
+| `lease-database` | Stockage des baux (type `memfile` = fichier CSV en mémoire). |
+| `expired-leases-processing` | Réclamation et purge des baux expirés. |
+| `renew-timer`, `rebind-timer`, `valid-lifetime` | Durées de vie des baux (optionnel au niveau global). |
+| `option-data` | Options DHCP globales (peuvent être surchargées par sous-réseau ou réservation). |
+| `subnet4` | Liste des sous-réseaux avec `id`, `subnet`, `pools` et `option-data` par sous-réseau. |
+| `reservations` | (Par sous-réseau) Réservations d’adresses par MAC, client-id, DUID, etc. |
+| `loggers` | Sortie et niveau des logs (stdout, fichier, syslog). |
+
+#### Exemple adapté au TP (variables X et Y)
+
+Remplacez `X` et `Y` par les valeurs de votre groupe/étudiant. L’option de passerelle doit s’appeler **`routers`** (option standard DHCP, code 3).
+
+**Fichier** : `/etc/kea/kea-dhcp4.conf`
 
 ```json
 {
-  "interfaces-config": {
-    "interfaces": ["eth0"]
-  },
-  "lease-database": {
-    "type": "memfile",
-    "lfc-interval": 3600
-  },
-  "subnet4": [
-    {
-      "subnet": "10.X.Y.0/24",
-      "pools": [
-        { "pool": "10.X.Y.10 - 10.X.Y.99" }
-      ],
-      "option-data": [
-        { "name": "router", "data": "10.X.Y.254" },
-        { "name": "domain-name-servers", "data": "10.X.Y.1" },
-        { "name": "domain-name", "data": "x.lab.local" }
-      ]
-    }
-  ]
+  "Dhcp4": {
+    "interfaces-config": {
+      "interfaces": [ "eth0" ]
+    },
+    "control-socket": {
+      "socket-type": "unix",
+      "socket-name": "/run/kea/kea4-ctrl-socket"
+    },
+    "lease-database": {
+      "type": "memfile",
+      "lfc-interval": 3600
+    },
+    "expired-leases-processing": {
+      "reclaim-timer-wait-time": 10,
+      "flush-reclaimed-timer-wait-time": 25,
+      "hold-reclaimed-time": 3600,
+      "max-reclaim-leases": 100,
+      "max-reclaim-time": 250,
+      "unwarned-reclaim-cycles": 5
+    },
+    "renew-timer": 900,
+    "rebind-timer": 1800,
+    "valid-lifetime": 3600,
+    "option-data": [
+      { "name": "domain-name-servers", "data": "10.X.Y.1" },
+      { "code": 15, "data": "x.lab.local" }
+    ],
+    "subnet4": [
+      {
+        "id": 1,
+        "subnet": "10.X.Y.0/24",
+        "pools": [ { "pool": "10.X.Y.10 - 10.X.Y.200" } ],
+        "option-data": [
+          { "name": "routers", "data": "10.X.Y.254" },
+          { "name": "domain-name-servers", "data": "10.X.Y.1" },
+          { "name": "domain-name", "data": "x.lab.local" }
+        ],
+        "reservations": [
+          { "hw-address": "aa:bb:cc:dd:ee:01", "ip-address": "10.X.Y.4", "hostname": "client-XY" }
+        ]
+      },
+      {
+        "id": 2,
+        "subnet": "10.X.20.0/24",
+        "pools": [ { "pool": "10.X.20.100 - 10.X.20.200" } ],
+        "option-data": [
+          { "name": "routers", "data": "10.X.20.254" },
+          { "name": "domain-name-servers", "data": "10.X.Y.1" },
+          { "name": "domain-name", "data": "x.lab.local" }
+        ]
+      }
+    ],
+    "loggers": [
+      {
+        "name": "kea-dhcp4",
+        "output_options": [ { "output": "stdout", "pattern": "%-5p %m\n" } ],
+        "severity": "INFO",
+        "debuglevel": 0
+      }
+    ]
+  }
 }
 ```
 
-Redémarrage et statut :
+- **Interfaces** : indiquez le nom réel de l’interface (ex. `eth0`, `ens18`). Avec plusieurs sous-réseaux relayés, Kea peut n’écouter que sur une seule interface ; les paquets relayés sont alors identifiés par l’adresse du relay.
+- **Réservation** : l’exemple réserve `10.X.Y.4` pour la VM client (adapter la MAC `aa:bb:cc:dd:ee:01` à la carte de la VM). Vous pouvez ajouter une réservation pour le switch (ex. `10.X.Y.253`) si besoin.
+- **Options** : `routers` = passerelle par défaut ; `domain-name-servers` = IP du serveur DNS (VM DNS/DHCP `10.X.Y.1`) ; `domain-name` = domaine de recherche.
+
+#### Validation et redémarrage
 
 ```bash
+# Vérifier la syntaxe du fichier (Kea peut le faire au démarrage)
+sudo kea-dhcp4 -t /etc/kea/kea-dhcp4.conf
+
 sudo systemctl restart kea-dhcp4-server
 sudo systemctl status kea-dhcp4-server
 ```
 
-> **Couplage avec le réseau** : si Kea n’est pas directement dans les VLANs, configurez un **IP helper** sur le routeur (`ip helper-address <IP_KEA>`) sur les interfaces Data/Mgmt.
+Recharger la configuration sans redémarrer le service (socket de contrôle) :
+
+```bash
+sudo systemctl reload kea-dhcp4-server
+```
+
+#### Couplage avec le réseau
+
+- Si la VM DNS/DHCP est **dans le même VLAN** que les clients (VLAN 10 Data), Kea reçoit directement les requêtes DHCP sur `eth0` ; aucun relay n’est nécessaire pour ce VLAN.
+- Si des clients sont dans un autre segment (ex. VLAN 20 Mgmt) ou derrière un routeur, configurez un **IP helper** sur le routeur Cisco vers l’IP de la VM Kea :
+
+```plaintext
+interface GigabitEthernet0/0.10
+ ip helper-address 10.X.Y.1
+interface GigabitEthernet0/0.20
+ ip helper-address 10.X.Y.1
+```
+
+> **Troubleshooting** : en cas d’échec au démarrage, vérifier les logs (`journalctl -u kea-dhcp4-server -f`) et que les plages `pool` sont bien incluses dans les `subnet` déclarés. Vérifier aussi que l’option s’appelle bien `routers` et non `router`.
 
 ---
 
