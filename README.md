@@ -25,7 +25,7 @@ Toutes les adresses IP et noms devront être adaptés en conséquence.
 
 - Configurer un **switch Cisco 2960** (VLAN, access, trunk).
 - Configurer un **routeur Cisco 2800** (sous-interfaces 802.1Q, routage OSPF).
-- Déployer **Kea DHCP**, **Bind9**, **LLDAP** et **ProFTPD** avec authentification LDAP.
+- Déployer ** DHCP**, **Bind9**, **LLDAP** et **ProFTPD** avec authentification LDAP.
 - Créer un rapport structurée et produire des **preuves** (commandes, captures).
 
 ---
@@ -403,7 +403,7 @@ write memory
 
 ## IV. Déploiement des services (Kea, Bind9, LLDAP, ProFTPD, Zabbix)
 
-Les services sont répartis sur plusieurs VMs Linux (ex. Debian) situées dans le LAN Data :
+Les services sont répartis sur plusieurs VMs Linux (ex. Ubuntu) situées dans le LAN Data :
 
 - VM DNS/DHCP.
 - VM supervision Zabbix.
@@ -412,7 +412,7 @@ Les services sont répartis sur plusieurs VMs Linux (ex. Debian) situées dans l
 
 ### IV.1 Plan générale
 
-- Système : Debian (ou distribution équivalente).
+- Système : Ubuntu (ou distribution équivalente).
 - **VM DNS/DHCP** : `dnsdhcp-xY`, IP `10.X.Y.1` (LAN Data).
 - **VM supervision (Zabbix)** : `zabbix-xY`, IP `10.X.Y.2`.
 - **VM FTP/LDAP** : `ftp-ldap-xY`, IP `10.X.Y.3`.
@@ -423,7 +423,7 @@ Les services sont répartis sur plusieurs VMs Linux (ex. Debian) situées dans l
 
 ### IV.2 Kea DHCP (JSON)
 
-Installation (exemple Debian) :
+Installation (exemple Ubuntu) :
 
 ```bash
 sudo apt-get update
@@ -445,21 +445,10 @@ Fichier principal (souvent `/etc/kea/kea-dhcp4.conf`) — exemple simplifié :
     {
       "subnet": "10.X.Y.0/24",
       "pools": [
-        { "pool": "10.X.Y.10 - 10.X.Y.100" }
+        { "pool": "10.X.Y.10 - 10.X.Y.99" }
       ],
       "option-data": [
         { "name": "router", "data": "10.X.Y.254" },
-        { "name": "domain-name-servers", "data": "10.X.Y.1" },
-        { "name": "domain-name", "data": "x.lab.local" }
-      ]
-    },
-    {
-      "subnet": "10.X.20.0/24",
-      "pools": [
-        { "pool": "10.X.20.100 - 10.X.20.150" }
-      ],
-      "option-data": [
-        { "name": "router", "data": "10.X.20.254" },
         { "name": "domain-name-servers", "data": "10.X.Y.1" },
         { "name": "domain-name", "data": "x.lab.local" }
       ]
@@ -491,7 +480,7 @@ Configuration minimale :
 
 - Fichier `named.conf.local` pour déclarer vos zones.
 - Zone directe `x.lab.local`.
-- Zone inverse pour `10.X.0.0/16` ou un sous-ensemble pertinent.
+- Zone inverse pour `10.X.y.0/16` ou un sous-ensemble pertinent.
 
 Exemple de `named.conf.local` :
 
