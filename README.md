@@ -493,25 +493,12 @@ Remplacez `X` et `Y` par les valeurs de votre groupe/étudiant. L’option de pa
       {
         "id": 1,
         "subnet": "10.X.Y.0/24",
-        "pools": [ { "pool": "10.X.Y.10 - 10.X.Y.200" } ],
+        "pools": [ { "pool": "10.X.Y.10 - 10.X.Y.99" } ],
         "option-data": [
           { "name": "routers", "data": "10.X.Y.254" },
           { "name": "domain-name-servers", "data": "10.X.Y.1" },
           { "name": "domain-name", "data": "x.lab.local" }
         ],
-        "reservations": [
-          { "hw-address": "aa:bb:cc:dd:ee:01", "ip-address": "10.X.Y.4", "hostname": "client-XY" }
-        ]
-      },
-      {
-        "id": 2,
-        "subnet": "10.X.20.0/24",
-        "pools": [ { "pool": "10.X.20.100 - 10.X.20.200" } ],
-        "option-data": [
-          { "name": "routers", "data": "10.X.20.254" },
-          { "name": "domain-name-servers", "data": "10.X.Y.1" },
-          { "name": "domain-name", "data": "x.lab.local" }
-        ]
       }
     ],
     "loggers": [
@@ -527,7 +514,6 @@ Remplacez `X` et `Y` par les valeurs de votre groupe/étudiant. L’option de pa
 ```
 
 - **Interfaces** : indiquez le nom réel de l’interface (ex. `eth0`, `ens18`). Avec plusieurs sous-réseaux relayés, Kea peut n’écouter que sur une seule interface ; les paquets relayés sont alors identifiés par l’adresse du relay.
-- **Réservation** : l’exemple réserve `10.X.Y.4` pour la VM client (adapter la MAC `aa:bb:cc:dd:ee:01` à la carte de la VM). Vous pouvez ajouter une réservation pour le switch (ex. `10.X.Y.253`) si besoin.
 - **Options** : `routers` = passerelle par défaut ; `domain-name-servers` = IP du serveur DNS (VM DNS/DHCP `10.X.Y.1`) ; `domain-name` = domaine de recherche.
 
 #### Validation et redémarrage
