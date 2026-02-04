@@ -803,7 +803,7 @@ Tests :
 ---
 
 
-Reset machine id après clone de VM.
+Forcer l'utilisation de la mac pour l'id dhcp.
 ```bash
 sudo nano /etc/netplan/50-cloud-init.yaml
 ```
