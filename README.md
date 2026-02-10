@@ -40,18 +40,24 @@ Chaque rangée (groupe, \(X\)) dispose du matériel suivant :
 
 Pour chaque étudiant identifié par \(Y\) :
 
-- 1 **PC étudiant** connecté à 1 **switch 2960**.
-- 1 **routeur 2800** relié au switch par un lien **trunk 802.1Q**.
+- 1 **PC étudiant** connecté à 1 **switch 2960 dédié** (`SW_XY`).
+- 1 **routeur 2800 dédié** (`R_XY`) relié au switch par un lien **trunk 802.1Q**.
 - Les VLANs principaux sont :
   - **VLAN 10** : Data (poste de travail).
   - **VLAN 20** : Management (accès aux équipements, services, supervision).
 
-Chaque groupe dispose en plus d’un ensemble minimal de **VMs de services** :
+Pour éviter les conflits en travaux pratiques, chaque étudiant doit déployer son propre lot de VMs (Ubuntu Server 24.04) :
 
-- 1 **VM DNS/DHCP** (Kea + Bind9).
-- 1 **VM supervision** (Zabbix serveur).
-- 1 **VM FTP/LDAP** (LLDAP + ProFTPD).
-- 1 **VM client** Linux, utilisée comme poste de test supplémentaire (`client_XY`).
+- 1 **VM DNS/DHCP** : `dnsdhcp_XY` (Kea + Bind9).
+- 1 **VM FTP/LDAP** : `ftpldap_XY` (LLDAP + ProFTPD).
+- 1 **VM supervision** : `zabbix_XY` (Zabbix appliance 7.4.6).
+- 1 **VM client** : `client_XY` (tests utilisateurs).
+
+Chaque groupe dispose en plus d’une interconnexion commune :
+
+- 1 réseau de transit inter-routeurs.
+- 1 routeur Core.
+- 1 ASA 5512-X vers Internet.
 
 **Chemin typique des paquets (intra-groupe)** :
 
@@ -71,16 +77,16 @@ _5. Le **routeur de bordure** est relié à l’**ASA 5512-X**, qui assure le **
 
 - **LAN Data étudiant (VLAN 10)** : `10.X.Y.0/24`
   - Passerelle par défaut (sous-interface routeur) : `10.X.Y.254`
-- **LAN Management (VLAN 20)** : `10.X.20.0/24`
-  - Passerelle par défaut (sous-interface routeur) : `10.X.20.254`
+- **LAN Management étudiant (VLAN 20)** : `10.X.Y.0/24`
+  - Passerelle de management (sous-interface routeur) : IP dédiée (ex. `10.X.Y.252` ou autre adresse réservée dans le /24).
 - **Transit inter-routeurs (X)** : `172.16.X.0/24`
-  - Adresses précises à définir par groupe pour chaque lien (ex. `.254` pour Core, `.Y` pour chaque `R_XY`, etc.).
+  - Adresses précises à définir par groupe pour chaque lien (ex. `.1` pour Core, `.Y` pour chaque `R_XY`, `.254` pour ASA inside).
 
 ### Tableau d’adressage — Modèle générique
 
 #### Rappels de variables
 
-- \(X\) : rangée / groupe (1, 2, 3, …)  
+- \(X\) : rangée / groupe (1, 2, 3, …)
 - \(Y\) : étudiant (1, 2, 3, …)
 
 #### Tableau principal
@@ -89,20 +95,20 @@ _5. Le **routeur de bordure** est relié à l’**ASA 5512-X**, qui assure le **
 |--------------------------------|------|----------------------|------------------------------|-----------------|--------------------------------|-------------------------------------------------|
 | PC Data étudiant `PC_XY`       | 10   | 10.X.Y.0/24          | 10.X.Y.100                    | 10.X.Y.254      | `SW_XY` Fa0/1 (access)         | Adresse fournie par DHCP Kea (scope Data)       |
 | SW_XY (SVI Mgmt)               | 10   | 10.X.Y.0/24          | 10.X.Y.253                   | 10.X.Y.254      | Vlan 10                        | IP de management du switch                      |
-| R_XY – sous-if Data            | 10   | 10.X.Y.0/24          | 10.X.Y.254                   | —               | `G0/0.X` (dot1Q 10)            | Passerelle Data étudiante                       |
-| R_XY – sous-if Mgmt            | 20   | 10.X.Y.0/24         | 10.X.Y.252                  | —               | `G0/0.20` (dot1Q 20)           | Passerelle Management                           |
+| R_XY – sous-if Data            | 10   | 10.X.Y.0/24          | 10.X.Y.254                   | —               | `G0/0.10` (dot1Q 10)           | Passerelle Data étudiante                       |
+| R_XY – sous-if Mgmt            | 20   | 10.X.Y.0/24          | 10.X.Y.252                   | —               | `G0/0.20` (dot1Q 20)           | Passerelle Management (adresse distincte du .254 Data) |
 | R_XY – interface Transit       | —    | 172.16.X.0/24        | 172.16.X.Y              | —               | `G0/1`                         | Lien vers switch de transit                     |
-| Routeur Core – vers transit    | —    | 172.16.X.0/24        | 172.16.X.254                   | —               | `G0/0`                         | Routeur de bordure, OSPF area 0                 |
-| ASA Inside                     | —    | 172.16.X.0/24        | 172.16.X.254                 | —               | `inside`                       | Interface inside, reliée au routeur Core        |
+| Routeur Core – vers transit    | —    | 172.16.X.0/24        | 172.16.X.254                 | —               | `G0/0`                         | Vers switch de transit (gateway des routeurs R_XY) |
+| ASA Inside                     | —    | 192.168.X.0/30       | 192.168.X.2                  | —               | `inside`                       | Lien p2p Core–ASA (Core = 192.168.X.1)          |
 | ASA Outside                    | —    | (réseau ISP labo)    | donné par enseignant         | passerelle ISP  | `outside`                      | Interface outside, vers Internet                |
 | VM DNS/DHCP                    | 10   | 10.X.Y.0/24          | 10.X.Y.1                     | 10.X.Y.254      | NIC vers VLAN 10 (ou trunk)    | Kea + Bind9                                     |
 | VM supervision (Zabbix)        | 10   | 10.X.Y.0/24          | 10.X.Y.2                     | 10.X.Y.254      | NIC vers VLAN 10 (ou trunk)    | Zabbix serveur                                  |
 | VM FTP/LDAP                    | 10   | 10.X.Y.0/24          | 10.X.Y.3                     | 10.X.Y.254      | NIC vers VLAN 10 (ou trunk)    | LLDAP + ProFTPD (auth LDAP)                     |
 | VM client Linux `client_XY`    | 10   | 10.X.Y.0/24          | 10.X.Y.4 (DHCP ou statique) | 10.X.Y.254      | NIC vers VLAN 10 (ou trunk)    | Poste de test supplémentaire (ping/dig/FTP…)    |
 
-> **Exemple chiffré** : pour \(X = 1\), \(Y = 3\)  
-> - LAN Data : `10.1.3.0/24`, passerelle `10.1.3.254`  
-> - LAN Mgmt : `10.1.20.0/24`, passerelle `10.1.20.254`  
+> **Exemple chiffré** : pour \(X = 1\), \(Y = 3\)
+> - LAN Data : `10.1.3.0/24`, passerelle `10.1.3.254`
+> - LAN Mgmt : `10.1.20.0/24`, passerelle `10.1.20.254`
 > - Transit : `172.16.1.0/24`, `R_13` = `172.16.1.13`, Core = `172.16.1.1`, ASA inside = `172.16.1.254`
 
 ---
@@ -154,8 +160,8 @@ copy tftp: running-config
  Source filename []? R_XY.cfg
 ```
 
-> **Bonnes pratiques** :  
-> - Sauvegarder régulièrement (`write memory`) à chaque étape importante.  
+> **Bonnes pratiques** :
+> - Sauvegarder régulièrement (`write memory`) à chaque étape importante.
 > - Conserver une **copie propre minimale** (config de base) et une **copie finale** (config complète commentée).
 
 ### III.1 Switch Cisco 2960 — VLANs, Access, Trunk
@@ -235,9 +241,9 @@ end
 write memory
 ```
 
-> **Troubleshooting (classiques)**  
-> - Vérifier que le port n’est pas `shutdown` : `show interfaces status`, `show running-config interface Fa0/1`.  
-> - Vérifier que le VLAN 10 existe : `show vlan brief`.  
+> **Troubleshooting (classiques)**
+> - Vérifier que le port n’est pas `shutdown` : `show interfaces status`, `show running-config interface Fa0/1`.
+> - Vérifier que le VLAN 10 existe : `show vlan brief`.
 > - Si le PC ne reçoit pas d’adresse IP, vérifier que la carte réseau est bien configurée en DHCP et que Kea voit les requêtes.
 
 #### III.1.5 Configuration du port trunk vers le routeur
@@ -257,8 +263,8 @@ end
 write memory
 ```
 
-> **Troubleshooting**  
-> - Mismatch access/trunk : si côté routeur vous utilisez des sous-interfaces dot1Q, le port côté switch DOIT être en **trunk**.  
+> **Troubleshooting**
+> - Mismatch access/trunk : si côté routeur vous utilisez des sous-interfaces dot1Q, le port côté switch DOIT être en **trunk**.
 > - Vérifier avec `show interfaces trunk` que les VLANs 10 et 20 sont bien autorisés.
 
 ---
@@ -327,10 +333,10 @@ end
 write memory
 ```
 
-> **Troubleshooting OSPF**  
-> - Vérifier les voisins : `show ip ospf neighbor`.  
-> - Vérifier la table de routage : `show ip route ospf`.  
-> - En cas d’absence de routes, vérifier **wildcards** et masques : le `network 172.16.X.0 0.0.0.255 area 0` doit correspondre exactement au réseau utilisé sur l’interface.  
+> **Troubleshooting OSPF**
+> - Vérifier les voisins : `show ip ospf neighbor`.
+> - Vérifier la table de routage : `show ip route ospf`.
+> - En cas d’absence de routes, vérifier **wildcards** et masques : le `network 172.16.X.0 0.0.0.255 area 0` doit correspondre exactement au réseau utilisé sur l’interface.
 > - Ne pas oublier `no shutdown` sur les interfaces physiques et sous-interfaces.
 
 ---
@@ -341,7 +347,7 @@ write memory
 
 Hypothèses :
 
-- Interface inside : connectée au routeur Core, réseau `172.16.X.0/24`, IP ASA inside `172.16.X.254`.
+- Interface inside : lien point-à-point vers le routeur Core, réseau `192.168.X.0/30` (Core = `192.168.X.1`, ASA inside = `192.168.X.2`).
 - Interface outside : réseau fourni par l’ISP de labo (ex. `192.0.2.0/24`).
 
 ```plaintext
@@ -359,7 +365,7 @@ interface GigabitEthernet0/0
 interface GigabitEthernet0/1
  nameif inside
  security-level 100
- ip address 172.16.X.254 255.255.255.0
+ ip address 192.168.X.2 255.255.255.252
  no shutdown
 
 end
@@ -394,9 +400,9 @@ end
 write memory
 ```
 
-> **Troubleshooting ASA**  
-> - Vérifier la table de routage : `show route`.  
-> - Vérifier le NAT : `show nat`, `show xlate`.  
+> **Troubleshooting ASA**
+> - Vérifier la table de routage : `show route`.
+> - Vérifier le NAT : `show nat`, `show xlate`.
 > - En cas de blocage, vérifier l’existence d’ACL sur l’interface outside si vous avez activé un filtrage explicite.
 
 ---
@@ -410,15 +416,16 @@ Les services sont répartis sur plusieurs VMs Linux (ex. Ubuntu) situées dans l
 - VM FTP/LDAP.
 - VM client.
 
-### IV.1 Plan générale
+### IV.1 Plan général (par étudiant)
 
-- Système : Ubuntu (ou distribution équivalente).
-- **VM DNS/DHCP** : `dnsdhcp-xY`, IP `10.X.Y.1` (LAN Data).
-- **VM supervision (Zabbix)** : `zabbix-xY`, IP `10.X.Y.2`.
-- **VM FTP/LDAP** : `ftp-ldap-xY`, IP `10.X.Y.3`.
+- Système recommandé : **Ubuntu Server 24.04 LTS** pour `dnsdhcp_XY`, `ftpldap_XY`, `client_XY`.
+- **VM DNS/DHCP** : `dnsdhcp_XY`, IP `10.X.Y.1` (LAN Data).
+- **VM supervision (Zabbix)** : `zabbix_XY`, IP `10.X.Y.2` (appliance Zabbix 7.4.6).
+- **VM FTP/LDAP** : `ftpldap_XY`, IP `10.X.Y.3`.
 - **VM client** : `client_XY`, IP en DHCP dans le scope Data (par exemple `10.X.Y.4`).
 - Passerelle par défaut des VMs : `10.X.Y.254`.
 - Noms de domaine : `x.lab.local` (à adapter à votre groupe).
+- Carte réseau VM : mode **bridged** vers le VLAN Data du poste étudiant (ou port-group équivalent en hyperviseur).
 ---
 
 ### IV.2 Kea DHCP (JSON)
@@ -676,32 +683,215 @@ lldap --version
 
 ### IV.5 ProFTPD (authentification LDAP)
 
-Installation de base :
+Objectif : authentifier les utilisateurs FTP sur LLDAP et isoler chaque étudiant dans son répertoire.
+
+#### Installation des paquets
 
 ```bash
 sudo apt-get install -y proftpd-basic proftpd-mod-ldap
 ```
 
-Configuration ProFTPD (fichier principal ou fragment dédié), points clés :
+Activez explicitement le module LDAP :
 
-- Activation du module LDAP.
-- Paramètres de connexion à LLDAP : URL, base DN, bind DN + mot de passe.
-- Mapping UID/GID à partir d’attributs LDAP (ex. `uidNumber`, `gidNumber`).
+```bash
+sudo sed -i 's/^#\?LoadModule mod_ldap.c/LoadModule mod_ldap.c/' /etc/proftpd/modules.conf
+```
 
-Exemple (extrait conceptuel) :
+Créez un fragment de configuration dédié :
+
+```bash
+sudo nano /etc/proftpd/conf.d/lldap.conf
+```
+
+Exemple de configuration (à adapter à votre arbre LDAP) :
 
 ```plaintext
 <IfModule mod_ldap.c>
-  LDAPServer "ldap://10.X.Y.3"
-  LDAPBindDN "cn=admin,dc=x,dc=lab,dc=local" "motdepasse"
-  LDAPUsers "ou=users,dc=x,dc=lab,dc=local" "uid=%u"
+  LDAPServer ldap://10.X.Y.3:389
+  LDAPAuthBinds on
+  LDAPBindDN "uid=admin,ou=people,dc=x,dc=lab,dc=local" "MotDePasseAdminLDAP"
+  LDAPDefaultUID 2000
+  LDAPDefaultGID 2000
+  LDAPForceDefaultUID on
+  LDAPForceDefaultGID on
+  LDAPUsers "ou=people,dc=x,dc=lab,dc=local" "(uid=%u)"
+  LDAPGroups "ou=groups,dc=x,dc=lab,dc=local" "(cn=%v)"
 </IfModule>
+
+ServerName "FTP_LDAP_XY"
+DefaultRoot ~
+RequireValidShell off
+UseIPv6 off
+PassivePorts 50000 50100
+
+<Limit LOGIN>
+  AllowAll
+</Limit>
 ```
 
-Tests :
+Points importants :
 
-- Connexion FTP / FTPS depuis `PC_XY` avec un compte LDAP.
-- Upload / download d’un fichier dans le home de l’utilisateur.
+- `LDAPAuthBinds on` force une authentification réelle sur LDAP (pas juste une recherche).
+- `DefaultRoot ~` confine l’utilisateur dans son home.
+- `RequireValidShell off` évite de rejeter des comptes LDAP sans shell Unix classique.
+- Pour un vrai chiffrement, préférez **FTPS explicite** (`TLSRequired on`) et un certificat local.
+
+#### Préparer les répertoires des utilisateurs FTP
+
+Si les homes ne sont pas créés automatiquement par LDAP, créez-les localement :
+
+```bash
+sudo mkdir -p /srv/ftp-homes
+sudo chown root:root /srv/ftp-homes
+sudo chmod 755 /srv/ftp-homes
+```
+
+Puis définissez un modèle de home dans LDAP (ex. `/srv/ftp-homes/%u`) ou créez les dossiers par utilisateur.
+
+#### Redémarrage et vérification
+
+```bash
+sudo systemctl restart proftpd
+sudo systemctl status proftpd
+sudo journalctl -u proftpd -f
+```
+
+#### Tests fonctionnels minimaux
+
+1. Vérifier la recherche LDAP depuis le serveur FTP :
+   ```bash
+   ldapsearch -x -H ldap://10.X.Y.3 -b "dc=x,dc=lab,dc=local" "(uid=etudiantXY)"
+   ```
+2. Tester une connexion FTP/FTPS depuis `client_XY`.
+3. Effectuer `put` puis `get` d’un fichier.
+4. Vérifier les logs ProFTPD et les permissions du home.
+
+---
+
+### IV.6 Zabbix 7.4.6 (appliance .ovf / .vmx)
+
+Objectif : déployer rapidement un serveur de supervision pour chaque étudiant à partir de l’appliance officielle Zabbix.
+
+> L’appliance est adaptée au TP et à l’évaluation, pas à une production critique.
+
+#### IV.6.1 Choix de l’image
+
+- `OVF` : import standard multi-hyperviseurs (vSphere, VirtualBox, certains outils KVM).
+- `VMX` : import direct VMware Workstation / ESXi (fichiers VMware prêts à l’emploi).
+- Version recommandée pour ce TP : **Zabbix 7.4.6**.
+
+Téléchargement : choisir `zabbix_appliance-7.4.6-ovf.tar.gz` ou `zabbix_appliance-7.4.6-vmx.tar.gz` selon l’hyperviseur.
+
+#### IV.6.2 Déploiement OVF (méthode générique)
+
+1. Télécharger et extraire l’archive :
+   ```bash
+   tar -xzf zabbix_appliance-7.4.6-ovf.tar.gz
+   ```
+2. Importer le fichier `.ovf` dans l’hyperviseur.
+3. Affecter la carte réseau au VLAN Data étudiant (réseau `10.X.Y.0/24`).
+4. Démarrer la VM puis configurer l’IP statique `10.X.Y.2/24`, passerelle `10.X.Y.254`, DNS `10.X.Y.1`.
+
+#### IV.6.3 Déploiement VMX (VMware)
+
+1. Extraire l’archive :
+   ```bash
+   tar -xzf zabbix_appliance-7.4.6-vmx.tar.gz
+   ```
+2. Ouvrir le fichier `.vmx` dans VMware Workstation/ESXi.
+3. Vérifier CPU/RAM/Disque (minimum conseillé en TP : 2 vCPU, 4 Go RAM).
+4. Connecter l’interface réseau au bon segment VLAN Data.
+5. Démarrer puis fixer l’IP `10.X.Y.2`.
+
+#### IV.6.4 Initialisation Zabbix
+
+Une fois la VM démarrée :
+
+1. **Connexion console (shell de la VM)**  
+   Depuis la console de l’hyperviseur ou en SSH sur la VM Zabbix :
+   - Login système : `root`  
+   - Mot de passe : `zabbix`  
+   (ce sont les identifiants par défaut de l’appliance Zabbix ; ils doivent être changés ensuite).
+
+2. **Vérifier les services Zabbix et Web**  
+   Après connexion, si un **menu texte** de l’appliance apparaît, tapez d’abord :
+   ```bash
+   shell
+   ```
+   pour obtenir un vrai prompt Linux (`root@zabbix:~#`).  
+   Ensuite, dans ce shell :
+   ```bash
+   systemctl status zabbix-server zabbix-agent nginx php-fpm mysql
+   ```
+   Les services doivent être en état `active (running)` ou équivalent.
+
+3. **Accéder à l’interface Web**  
+   Depuis un navigateur sur `client_XY` ou `PC_XY` :
+   - URL : `http://10.X.Y.2/zabbix`
+   - Identifiants par défaut :
+     - Utilisateur : `Admin`  (attention à la majuscule)
+     - Mot de passe : `zabbix`
+
+4. **Finaliser l’assistant et sécuriser l’accès**  
+   - Suivre l’assistant web si proposé (les paramètres de base MySQL sont déjà préconfigurés dans l’appliance).
+   - Aller dans la section Administration / Users et **changer immédiatement** le mot de passe du compte `Admin`.
+
+#### IV.6.5 Inventaire et supervision par étudiant
+
+Chaque étudiant doit superviser au minimum :
+
+- son routeur `R_XY`,
+- son switch `SW_XY`,
+- sa VM `dnsdhcp_XY`,
+- sa VM `ftpldap_XY`,
+- sa VM `client_XY`.
+
+Convention recommandée dans Zabbix :
+
+- **Host group** : `Groupe_X_Etudiant_Y`
+- **Hosts** : `R_XY`, `SW_XY`, `dnsdhcp_XY`, `ftpldap_XY`, `client_XY`
+- **Tags** : `groupe=X`, `etudiant=Y`, `role=routeur|switch|vm`
+
+Templates conseillés :
+
+- `Linux by Zabbix agent` pour les VMs Ubuntu 24.04.
+- SNMP template Cisco pour routeur/switch (si SNMP activé sur IOS).
+- `ICMP Ping` minimum sur tous les équipements.
+
+#### IV.6.6 Agent Zabbix sur Ubuntu 24.04
+
+Sur chaque VM Ubuntu supervisée :
+
+```bash
+sudo apt update
+sudo apt install -y zabbix-agent2
+sudo sed -i "s/^Server=.*/Server=10.X.Y.2/" /etc/zabbix/zabbix_agent2.conf
+sudo sed -i "s/^ServerActive=.*/ServerActive=10.X.Y.2/" /etc/zabbix/zabbix_agent2.conf
+sudo sed -i "s/^Hostname=.*/Hostname=client_XY/" /etc/zabbix/zabbix_agent2.conf
+sudo systemctl enable --now zabbix-agent2
+```
+
+Répéter en ajustant `Hostname` (`dnsdhcp_XY`, `ftpldap_XY`, etc.).
+
+#### IV.6.7 Supervision Cisco par SNMP (minimum)
+
+Sur IOS (routeur/switch), exemple simple :
+
+```plaintext
+conf t
+snmp-server community TPpublic RO
+snmp-server location Salle_X
+snmp-server contact enseignant@lab.local
+end
+write memory
+```
+
+Dans Zabbix :
+
+1. Créer l’hôte (`R_XY` ou `SW_XY`) avec IP de management.
+2. Ajouter interface SNMP v2, communauté `TPpublic`.
+3. Lier un template SNMP Cisco.
+4. Vérifier la collecte (dernières données + graphes).
 
 ---
 
@@ -728,19 +918,19 @@ Tests :
 
 ### V.2 Tests de connectivité IP
 
-1. **Intra-VLAN Data (même X, Y différents)**  
-   - Depuis `PC_XY`, ping un autre PC Data du même groupe (si disponible).  
+1. **Intra-VLAN Data (même X, Y différents)**
+   - Depuis `PC_XY`, ping un autre PC Data du même groupe (si disponible).
    - Résultat attendu : **Ping OK**.
 
-2. **Inter-VLAN via routage**  
-   - Depuis `PC_XY` (VLAN 10), ping une IP de Management (VLAN 20) autorisée (par ex. SVI du switch ou serveur).  
+2. **Inter-VLAN via routage**
+   - Depuis `PC_XY` (VLAN 10), ping une IP de Management (VLAN 20) autorisée (par ex. SVI du switch ou serveur).
    - Résultat attendu : **Ping OK**, tracé montrant passage par `R_XY`.
 
-3. **Accès à Internet via ASA**  
-   - Depuis `PC_XY`, ping une IP publique autorisée (ex. `8.8.8.8` ou cible labo).  
+3. **Accès à Internet via ASA**
+   - Depuis `PC_XY`, ping une IP publique autorisée (ex. `8.8.8.8` ou cible labo).
    - Résultat attendu : **Ping OK**, NAT visible sur ASA (`show xlate`).
 
-4. **Routage inter-élèves (optionnel)**  
+4. **Routage inter-élèves (optionnel)**
    - Tester un ping / traceroute d’un PC d’un étudiant à un autre PC d’étudiant (autre Y, même X ou autre X) si la politique de routage le permet.
 
 ---
@@ -766,33 +956,39 @@ Tests :
   - Depuis `PC_XY`, se connecter en FTP (ou FTPS) avec un compte LDAP.
   - Effectuer un upload / download de fichier et vérifier les logs ProFTPD.
 
+- **Zabbix 7.4.6** :
+  - Vérifier l’accès web à `http://10.X.Y.2/zabbix`.
+  - Vérifier que les 5 hôtes minimum (`R_XY`, `SW_XY`, `dnsdhcp_XY`, `ftpldap_XY`, `client_XY`) sont en état "Enabled/Available".
+  - Produire une capture de l’écran "Latest data" et au moins un graphe (CPU VM ou interface réseau Cisco).
+
 ---
 
 ## VI. Grille d’évaluation (barème sur 20)
 
-> **Objectif** : disposer de critères clairs, techniques, et vérifiables.  
+> **Objectif** : disposer de critères clairs, techniques, et vérifiables.
 > Les points peuvent être ajustés par l’enseignant selon la durée et la profondeur souhaitées.
 
 ### 1. Topologie & adressage (4 pts)
 
-- **(2 pts)** : Plan d’adressage complet, cohérent, respectant les variables \(X\) et \(Y\) (Data, Mgmt, Transit).  
+- **(2 pts)** : Plan d’adressage complet, cohérent, respectant les variables \(X\) et \(Y\) (Data, Mgmt, Transit).
 - **(2 pts)** : Documentation des schémas (logique + physique) et correspondances interfaces/ports.
 
 ### 2. Configuration L2/L3 Cisco & OSPF (6 pts)
 
-- **(2 pts)** : VLANs, ports access, trunks correctement configurés (2960).  
-- **(2 pts)** : Sous-interfaces dot1Q et IP correctement configurées (2800).  
+- **(2 pts)** : VLANs, ports access, trunks correctement configurés (2960).
+- **(2 pts)** : Sous-interfaces dot1Q et IP correctement configurées (2800).
 - **(2 pts)** : OSPF fonctionnel (adjacences stables, routes correctes).
 
 ### 3. ASA & sécurité (4 pts)
 
-- **(2 pts)** : Interfaces ASA correctly configurées (inside/outside, IP, security-level, routes).  
+- **(2 pts)** : Interfaces ASA correctly configurées (inside/outside, IP, security-level, routes).
 - **(2 pts)** : NAT fonctionnel permettant un accès "Internet" depuis les LANs internes.
 
-### 4. Services Kea / Bind9 / LLDAP / ProFTPD (6 pts)
+### 4. Services Kea / Bind9 / LLDAP / ProFTPD / Zabbix (6 pts)
 
-- **(3 pts)** : Kea & Bind9 opérationnels (clients obtiennent IP + résolution de noms OK).  
-- **(3 pts)** : LLDAP & ProFTPD intégrés (auth LDAP fonctionnelle, tests FTP concluants).
+- **(2 pts)** : Kea & Bind9 opérationnels (clients obtiennent IP + résolution de noms OK).
+- **(2 pts)** : LLDAP & ProFTPD intégrés (auth LDAP fonctionnelle, tests FTP concluants).
+- **(2 pts)** : Zabbix opérationnel (appliance déployée, hôtes de l’étudiant supervisés, métriques visibles).
 
 ### Pénalités / bonus
 
@@ -824,6 +1020,6 @@ sudo netplan apply
 ### Ce qui est attendu dans le rapport
 
 - Fiche de **plan d’adressage** (tableaux complétés pour vos valeurs \(X\) et \(Y\)).
-- Extraits de **configurations Cisco/ASA**, Kea, Bind9, LLDAP, ProFTPD (commentés).
+- Extraits de **configurations Cisco/ASA**, Kea, Bind9, LLDAP, ProFTPD, Zabbix (commentés).
 - **Recette de tests** (liste de commandes + résultats) et conclusions.
 
