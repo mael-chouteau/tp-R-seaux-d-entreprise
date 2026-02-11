@@ -709,7 +709,7 @@ Exemple de configuration (à adapter à votre arbre LDAP) :
 <IfModule mod_ldap.c>
   LDAPServer ldap://10.X.Y.3:3890
   LDAPAuthBinds on
-  LDAPBindDN "uid=admin,ou=lldap_admin,dc=x,dc=lab,dc=local" "MotDePasseAdminLDAP"
+  LDAPBindDN "uid=admin,ou=people,dc=x,dc=lab,dc=local" "MotDePasseAdminLDAP"
   LDAPDefaultUID 2000
   LDAPDefaultGID 2000
   LDAPForceDefaultUID on
@@ -760,7 +760,7 @@ sudo journalctl -u proftpd -f
 
 1. Vérifier la recherche LDAP depuis le serveur FTP :
    ```bash
-   ldapsearch -x -H ldap://10.X.Y.3 -b "dc=x,dc=lab,dc=local" "(uid=etudiantXY)"
+   ldapsearch -x -H ldap://10.X.Y.3 -b "dc=x,dc=lab,dc=local" -w -D "uid=admin,ou=people,dc=x,dc=lab,dc=local" "(uid=admin)"
    ```
 2. Tester une connexion FTP/FTPS depuis `client_XY`.
 3. Effectuer `put` puis `get` d’un fichier.
