@@ -254,7 +254,6 @@ Supposons que le lien vers `R_XY` soit `FastEthernet0/24` :
 configure terminal
 
 interface FastEthernet0/24
- switchport trunk encapsulation dot1q
  switchport mode trunk
  switchport trunk allowed vlan 10,20
  no shutdown
