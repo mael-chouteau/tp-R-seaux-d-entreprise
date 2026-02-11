@@ -707,9 +707,9 @@ Exemple de configuration (à adapter à votre arbre LDAP) :
 
 ```plaintext
 <IfModule mod_ldap.c>
-  LDAPServer ldap://10.X.Y.3:389
+  LDAPServer ldap://10.X.Y.3:3890
   LDAPAuthBinds on
-  LDAPBindDN "uid=admin,ou=people,dc=x,dc=lab,dc=local" "MotDePasseAdminLDAP"
+  LDAPBindDN "uid=admin,ou=lldap_admin,dc=x,dc=lab,dc=local" "MotDePasseAdminLDAP"
   LDAPDefaultUID 2000
   LDAPDefaultGID 2000
   LDAPForceDefaultUID on
