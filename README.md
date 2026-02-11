@@ -760,7 +760,7 @@ sudo journalctl -u proftpd -f
 
 1. Vérifier la recherche LDAP depuis le serveur FTP :
    ```bash
-   ldapsearch -x -H ldap://10.X.Y.3 -b "dc=x,dc=lab,dc=local" -w -D "uid=admin,ou=people,dc=x,dc=lab,dc=local" "(uid=admin)"
+   ldapsearch -x -H ldap://10.X.Y.3 -b "dc=x,dc=lab,dc=local" -W -D "uid=admin,ou=people,dc=x,dc=lab,dc=local" "(uid=admin)"
    ```
 2. Tester une connexion FTP/FTPS depuis `client_XY`.
 3. Effectuer `put` puis `get` d’un fichier.
