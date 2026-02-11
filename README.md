@@ -96,7 +96,7 @@ _5. Le **routeur de bordure** est relié à l’**ASA 5512-X**, qui assure le **
 | PC Data étudiant `PC_XY`       | 10   | 10.X.Y.0/24          | 10.X.Y.100                    | 10.X.Y.254      | `SW_XY` Fa0/1 (access)         | Adresse fournie par DHCP Kea (scope Data)       |
 | SW_XY (SVI Mgmt)               | 10   | 10.X.Y.0/24          | 10.X.Y.253                   | 10.X.Y.254      | Vlan 10                        | IP de management du switch                      |
 | R_XY – sous-if Data            | 10   | 10.X.Y.0/24          | 10.X.Y.254                   | —               | `G0/0.10` (dot1Q 10)           | Passerelle Data étudiante                       |
-| R_XY – sous-if Mgmt            | 20   | 10.X.Y.0/24          | 10.X.Y.252                   | —               | `G0/0.20` (dot1Q 20)           | Passerelle Management (adresse distincte du .254 Data) |
+| R_XY – sous-if Mgmt            | 20   | 10.X.2Y.0/24          | 10.X.2Y.252                   | —               | `G0/0.20` (dot1Q 20)           | Passerelle Management (adresse distincte du .254 Data) |
 | R_XY – interface Transit       | —    | 172.16.X.0/24        | 172.16.X.Y              | —               | `G0/1`                         | Lien vers switch de transit                     |
 | Routeur Core – vers transit    | —    | 172.16.X.0/24        | 172.16.X.254                 | —               | `G0/0`                         | Vers switch de transit (gateway des routeurs R_XY) |
 | ASA Inside                     | —    | 192.168.X.0/30       | 192.168.X.2                  | —               | `inside`                       | Lien p2p Core–ASA (Core = 192.168.X.1)          |
@@ -274,7 +274,7 @@ write memory
 
 On suppose :
 
-- Lien trunk vers switch : `GigabitEthernet0/0`.
+- Lien trunk vers switch : `FastEthernet0/0`.
 - VLAN 10 (Data) / VLAN 20 (Mgmt).
 
 ```plaintext
@@ -283,14 +283,14 @@ configure terminal
 
 hostname R_XY
 
-interface GigabitEthernet0/0.10
+interface FastEthernet0/0.10
  encapsulation dot1Q 10
  ip address 10.X.Y.254 255.255.255.0
  no shutdown
 
-interface GigabitEthernet0/0.20
+interface FastEthernet0/0.20
  encapsulation dot1Q 20
- ip address 10.X.20.254 255.255.255.0
+ ip address 10.X.2Y.254 255.255.255.0
  no shutdown
 
 end
@@ -325,7 +325,7 @@ configure terminal
 router ospf 1
  router-id 1.X.Y.Y      ! à adapter (exemple)
  network 10.X.Y.0 0.0.0.255 area 0
- network 10.X.20.0 0.0.0.255 area 0
+ network 10.X.Y.0 0.0.0.255 area 0
  network 172.16.X.0 0.0.0.255 area 0
 
 end
