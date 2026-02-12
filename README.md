@@ -301,14 +301,14 @@ write memory
 
 On suppose :
 
-- Lien vers switch de transit sur `GigabitEthernet0/1`.
-- Adresse du routeur `R_XY` sur transit : `172.16.X.(10+Y)`, masque `/24`.
+- Lien vers switch de transit sur `FastEthernet0/1`.
+- Adresse du routeur `R_XY` sur transit : `172.16.X.Y`, masque `/24`.
 
 ```plaintext
 configure terminal
 
-interface GigabitEthernet0/1
- ip address 172.16.X.(10+Y) 255.255.255.0
+interface FastEthernet0/1
+ ip address 172.16.X.Y 255.255.255.0
  no shutdown
 
 end
@@ -325,7 +325,7 @@ configure terminal
 router ospf 1
  router-id 1.X.Y.Y      ! à adapter (exemple)
  network 10.X.Y.0 0.0.0.255 area 0
- network 10.X.Y.0 0.0.0.255 area 0
+ network 10.X.2Y.0 0.0.0.255 area 0
  network 172.16.X.0 0.0.0.255 area 0
 
 end
@@ -906,7 +906,7 @@ Dans Zabbix :
   - `show interfaces status` : vérifier que les ports sont `connected` et non `err-disabled`.
 
 - **Routeur 2800 (R_XY)** :
-  - `show ip interface brief` : sous-interfaces `G0/0.10`, `G0/0.20` et interface `G0/1` up avec les bonnes IP.
+  - `show ip interface brief` : sous-interfaces `Fa0/0.10`, `Fa0/0.20` et interface `Fa0/1` up avec les bonnes IP.
   - `show ip route` : routes OSPF présentes vers d’autres LAN Data/Mgmt.
   - `show ip ospf neighbor` : au moins un voisin OSPF (le Core, les autres routeurs).
 
