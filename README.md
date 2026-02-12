@@ -94,8 +94,8 @@ _5. Le **routeur de bordure** est relié à l’**ASA 5512-X**, qui assure le **
 
 | Rôle / Équipement              | VLAN | Réseau / Masque     | Adresse IP (exemple)         | Passerelle      | Interface / Port               | Commentaire                                      |
 |--------------------------------|------|----------------------|------------------------------|-----------------|--------------------------------|-------------------------------------------------|
-| PC Data étudiant `PC_XY`       | 10   | 10.X.Y.0/24          | 10.X.Y.100                    | 10.X.Y.254      | `SW_XY` Fa0/1 (access)         | Adresse fournie par DHCP Kea (scope Data)       |
-| SW_XY (SVI Mgmt)               | 10   | 10.X.Y.0/24          | 10.X.Y.253                   | 10.X.Y.254      | Vlan 10                        | IP de management du switch                      |
+| PC Data étudiant `PC_XY`       | 10   | 10.X.2Y.0/24          | 10.X.2Y.100                    | 10.X.Y.254      | `SW_XY` Fa0/1 (access)         | Adresse fournie par DHCP Kea (scope Data)       |
+| SW_XY (SVI Mgmt)               | 10   | 10.X.2Y.0/24          | 10.X.2Y.253                   | 10.X.Y.254      | Vlan 10                        | IP de management du switch                      |
 | R_XY – sous-if Data            | 10   | 10.X.Y.0/24          | 10.X.Y.254                   | —               | `G0/0.10` (dot1Q 10)           | Passerelle Data étudiante                       |
 | R_XY – sous-if Mgmt            | 20   | 10.X.2Y.0/24          | 10.X.2Y.252                   | —               | `G0/0.20` (dot1Q 20)           | Passerelle Management (adresse distincte du .254 Data) |
 | R_XY – interface Transit       | —    | 172.16.X.0/24        | 172.16.X.Y              | —               | `G0/1`                         | Lien vers switch de transit                     |
@@ -213,11 +213,11 @@ write memory
 ```plaintext
 configure terminal
 
-interface Vlan10
- ip address 10.X.Y.253 255.255.255.0
+interface Vlan20
+ ip address 10.X.2Y.253 255.255.255.0
  no shutdown
 
-ip default-gateway 10.X.Y.254
+ip default-gateway 10.X.2Y.254
 
 end
 write memory
