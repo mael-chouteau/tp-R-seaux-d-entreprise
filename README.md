@@ -67,7 +67,7 @@ Chaque groupe dispose en plus d’une interconnexion commune :
 4. Tous les routeurs `R_XY` sont interconnectés via un **switch de transit** à un **routeur de bordure (Core)**.
 _5. Le **routeur de bordure** est relié à l’**ASA 5512-X**, qui assure le **NAT** et le contrôle d’accès vers la zone Outside (Internet)._
 
-![Uploading 20260204_082542.jpg…]()
+![20260204_082542](https://github.com/user-attachments/assets/01ddfd8e-a077-4fcd-8bbf-206be1878b41)
 
 
 ---
