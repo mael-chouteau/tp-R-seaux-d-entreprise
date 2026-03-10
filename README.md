@@ -61,7 +61,7 @@ Chaque groupe dispose en plus d’une interconnexion commune :
 
 **Chemin typique des paquets (intra-groupe)** :
 
-1. PC étudiant `PC_XY` relié au switch `SW_XY` via **un seul câble** (port access dans VLAN 10 Data ; VLAN 20 Mgmt accessible par IP distincte).
+1. PC étudiant `PC_XY` relié au switch `SW_XY` via **un seul câble** (port trunk, VLAN natif 20 : trafic non tagué du PC → VLAN 20 Mgmt ; trames taguées des VMs → VLAN 10 Data).
 2. `SW_XY` est relié au routeur `R_XY` via un lien en **trunk 802.1Q**, transportant au minimum les VLANs 10 et 20.
 3. `R_XY` assure le **routage inter-VLAN** (sous-interfaces dot1Q) et la connectivité vers le **réseau de transit** commun entre routeurs.
 4. Tous les routeurs `R_XY` sont interconnectés via un **switch de transit** à un **routeur de bordure (Core)**.
@@ -94,7 +94,7 @@ _5. Le **routeur de bordure** est relié à l’**ASA 5512-X**, qui assure le **
 
 | Rôle / Équipement              | VLAN | Réseau / Masque     | Adresse IP (exemple)         | Passerelle      | Interface / Port               | Commentaire                                      |
 |--------------------------------|------|----------------------|------------------------------|-----------------|--------------------------------|-------------------------------------------------|
-| PC managment étudiant `PC_XY`       | 20   | 10.X.2Y.0/24          | 10.X.2Y.100                    | 10.X.Y.254      | `SW_XY` Fa0/1 (access)         | Adresse manuelle       |
+| PC managment étudiant `PC_XY`       | 20   | 10.X.2Y.0/24          | 10.X.2Y.100                    | 10.X.2Y.252     | `SW_XY` Fa0/1 (trunk, natif 20) | Adresse manuelle       |
 | SW_XY (SVI Mgmt)               | 20   | 10.X.2Y.0/24          | 10.X.2Y.253                   | 10.X.Y.254      | Vlan 20                        | IP de management du switch                      |
 | R_XY – sous-if Data            | 10   | 10.X.Y.0/24          | 10.X.Y.254                   | —               | `G0/0.10` (dot1Q 10)           | Passerelle Data étudiante                       |
 | R_XY – sous-if Mgmt            | 20   | 10.X.2Y.0/24          | 10.X.2Y.252                   | —               | `G0/0.20` (dot1Q 20)           | Passerelle Management (adresse distincte du .254 Data) |
@@ -225,16 +225,15 @@ write memory
 
 > Cette interface permet d’administrer `SW_XY` en IPv4 (SSH, HTTP/HTTPS si activé) via le réseau Data `10.X.Y.0/24`.
 
-#### III.1.4 Configuration du port access pour le PC
-
-Supposons que le PC de l’étudiant soit connecté sur `FastEthernet0/1` :
+#### III.1.4 Configuration du port vers le PC et l'hyperviseur (Fa0/1) — trunk, VLAN natif 20
 
 ```plaintext
 configure terminal
 
 interface FastEthernet0/1
- switchport mode access
- switchport access vlan 10
+ switchport mode trunk
+ switchport trunk native vlan 20
+ switchport trunk allowed vlan 10,20
  spanning-tree portfast
  no shutdown
 
@@ -244,8 +243,8 @@ write memory
 
 > **Troubleshooting (classiques)**
 > - Vérifier que le port n’est pas `shutdown` : `show interfaces status`, `show running-config interface Fa0/1`.
-> - Vérifier que le VLAN 10 existe : `show vlan brief`.
-> - Si le PC ne reçoit pas d’adresse IP, vérifier que la carte réseau est bien configurée en DHCP et que Kea voit les requêtes.
+> - Vérifier le trunk : `show interfaces trunk` — Fa0/1 doit afficher Native VLAN 20 et Allowed 10,20.
+> - Le PC Windows (non tagué) reçoit une IP du réseau Management `10.X.2Y.0/24` (VLAN 20) ; les VMs (taguées VLAN 10) sont sur le réseau Data `10.X.Y.0/24`.
 
 #### III.1.5 Configuration du port trunk vers le routeur
 
