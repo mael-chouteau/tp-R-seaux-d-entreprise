@@ -208,7 +208,7 @@ end
 write memory
 ```
 
-#### III.1.3 Interface de management du switch (SVI Vlan10)
+#### III.1.3 Interface de management du switch (SVI Vlan20)
 
 ```plaintext
 configure terminal
