@@ -78,8 +78,8 @@ _5. Le **routeur de bordure** est relié à l’**ASA 5512-X**, qui assure le **
 
 - **LAN Data étudiant (VLAN 10)** : `10.X.Y.0/24`
   - Passerelle par défaut (sous-interface routeur) : `10.X.Y.254`
-- **LAN Management étudiant (VLAN 20)** : `10.X.Y.0/24`
-  - Passerelle de management (sous-interface routeur) : IP dédiée (ex. `10.X.Y.252` ou autre adresse réservée dans le /24).
+- **LAN Management étudiant (VLAN 20)** : `10.X.2Y.0/24` (2Y = 20+Y, ex. Y=1 → 21, Y=2 → 22)
+  - Passerelle de management (sous-interface routeur) : `10.X.2Y.254`
 - **Transit inter-routeurs (X)** : `172.16.X.0/24`
   - Adresses précises à définir par groupe pour chaque lien (ex. `.1` pour Core, `.Y` pour chaque `R_XY`, `.254` pour ASA inside).
 
@@ -94,10 +94,10 @@ _5. Le **routeur de bordure** est relié à l’**ASA 5512-X**, qui assure le **
 
 | Rôle / Équipement              | VLAN | Réseau / Masque     | Adresse IP (exemple)         | Passerelle      | Interface / Port               | Commentaire                                      |
 |--------------------------------|------|----------------------|------------------------------|-----------------|--------------------------------|-------------------------------------------------|
-| PC managment étudiant `PC_XY`       | 20   | 10.X.2Y.0/24          | 10.X.2Y.100                    | 10.X.2Y.252     | `SW_XY` Fa0/1 (trunk, natif 20) | Adresse manuelle       |
-| SW_XY (SVI Mgmt)               | 20   | 10.X.2Y.0/24          | 10.X.2Y.253                   | 10.X.Y.254      | Vlan 20                        | IP de management du switch                      |
+| PC managment étudiant `PC_XY`       | 20   | 10.X.2Y.0/24          | 10.X.2Y.100                    | 10.X.2Y.254     | `SW_XY` Fa0/1 (trunk, natif 20) | Adresse manuelle       |
+| SW_XY (SVI Mgmt)               | 20   | 10.X.2Y.0/24          | 10.X.2Y.253                   | 10.X.2Y.254     | Vlan 20                        | IP de management du switch                      |
 | R_XY – sous-if Data            | 10   | 10.X.Y.0/24          | 10.X.Y.254                   | —               | `G0/0.10` (dot1Q 10)           | Passerelle Data étudiante                       |
-| R_XY – sous-if Mgmt            | 20   | 10.X.2Y.0/24          | 10.X.2Y.252                   | —               | `G0/0.20` (dot1Q 20)           | Passerelle Management (adresse distincte du .254 Data) |
+| R_XY – sous-if Mgmt            | 20   | 10.X.2Y.0/24          | 10.X.2Y.254                   | —               | `G0/0.20` (dot1Q 20)           | Passerelle Management                           |
 | R_XY – interface Transit       | —    | 172.16.X.0/24        | 172.16.X.Y              | —               | `G0/1`                         | Lien vers switch de transit                     |
 | Routeur Core – vers transit    | —    | 172.16.X.0/24        | 172.16.X.254                 | —               | `G0/0`                         | Vers switch de transit (gateway des routeurs R_XY) |
 | ASA Inside                     | —    | 192.168.X.0/30       | 192.168.X.2                  | —               | `inside`                       | Lien p2p Core–ASA (Core = 192.168.X.1)          |
@@ -107,10 +107,10 @@ _5. Le **routeur de bordure** est relié à l’**ASA 5512-X**, qui assure le **
 | VM FTP/LDAP                    | 10   | 10.X.Y.0/24          | 10.X.Y.3                     | 10.X.Y.254      | NIC vers VLAN 10 (ou trunk)    | LLDAP + ProFTPD (auth LDAP)                     |
 | VM client Linux `client_XY`    | 10   | 10.X.Y.0/24          | 10.X.Y.4 (DHCP ou statique) | 10.X.Y.254      | NIC vers VLAN 10 (ou trunk)    | Poste de test supplémentaire (ping/dig/FTP…)    |
 
-> **Exemple chiffré** : pour \(X = 1\), \(Y = 3\)
+> **Exemple chiffré** : pour \(X = 1\), \(Y = 3\) (2Y = 23)
 > - LAN Data : `10.1.3.0/24`, passerelle `10.1.3.254`
-> - LAN Mgmt : `10.1.20.0/24`, passerelle `10.1.20.254`
-> - Transit : `172.16.1.0/24`, `R_13` = `172.16.1.13`, Core = `172.16.1.1`, ASA inside = `172.16.1.254`
+> - LAN Mgmt : `10.1.23.0/24`, passerelle `10.1.23.254`
+> - Transit : `172.16.1.0/24`, `R_13` = `172.16.1.3`, Core = `172.16.1.254`, ASA inside = `192.168.1.2`
 
 ---
 
@@ -223,7 +223,7 @@ end
 write memory
 ```
 
-> Cette interface permet d’administrer `SW_XY` en IPv4 (SSH, HTTP/HTTPS si activé) via le réseau Data `10.X.Y.0/24`.
+> Cette interface permet d’administrer `SW_XY` en IPv4 (SSH, HTTP/HTTPS si activé) via le réseau Management `10.X.2Y.0/24`.
 
 #### III.1.4 Configuration du port vers le PC et l'hyperviseur (Fa0/1) — trunk, VLAN natif 20
 
@@ -425,6 +425,115 @@ Les services sont répartis sur plusieurs VMs Linux (ex. Ubuntu) situées dans l
 - Passerelle par défaut des VMs : `10.X.Y.254`.
 - Noms de domaine : `x.lab.local` (à adapter à votre groupe).
 - Carte réseau VM : mode **bridged** vers le VLAN Data du poste étudiant (ou port-group équivalent en hyperviseur).
+
+### IV.1.1 Configuration du VLAN 10 dans netplan (VMs)
+
+Lorsque l’hyperviseur envoie des trames **taguées VLAN 10** vers les VMs (mode bridged avec VLAN), chaque VM doit configurer une interface VLAN 802.1Q côté système. Sous Ubuntu, cela se fait via **netplan**.
+
+#### Cas 1 : VM avec interface VLAN et IP statique (ex. dnsdhcp_XY, ftpldap_XY, zabbix_XY)
+
+Adaptez le nom de l’interface physique (`enp0s3`, `ens18`, `eth0`, etc.) et les adresses selon votre plan.
+
+```yaml
+# /etc/netplan/50-cloud-init.yaml ou 01-netcfg.yaml
+network:
+  version: 2
+  ethernets:
+    enp0s3:
+      # Interface physique sans IP (trafic tagué uniquement)
+      dhcp4: false
+  vlans:
+    enp0s3.10:
+      id: 10
+      link: enp0s3
+      addresses:
+        - 10.X.Y.1/24   # Adapter : .1 pour dnsdhcp, .2 pour zabbix, .3 pour ftpldap
+      routes:
+        - to: default
+          via: 10.X.Y.254
+      nameservers:
+        addresses:
+          - 10.X.Y.1
+```
+
+#### Cas 2 : VM client avec DHCP sur le VLAN 10 (client_XY)
+
+```yaml
+network:
+  version: 2
+  ethernets:
+    enp0s3:
+      dhcp4: false
+  vlans:
+    enp0s3.10:
+      id: 10
+      link: enp0s3
+      dhcp4: true
+      dhcp-identifier: mac
+```
+
+#### Application et vérification
+
+```bash
+sudo netplan apply
+ip addr show
+ip route show
+```
+
+Vérifier que l’interface `enp0s3.10` (ou équivalent) existe avec une adresse dans `10.X.Y.0/24` et que la route par défaut pointe vers `10.X.Y.254`.
+
+> **Remarque** : Si l’hyperviseur utilise un port-group qui envoie déjà du trafic non tagué sur le VLAN 10, la VM peut ne pas avoir besoin de sous-interface VLAN. Dans ce cas, une config `ethernets` classique avec `dhcp4: true` ou une IP statique suffit.
+
+### IV.1.2 Vérifier que Kea DHCP sert bien le VLAN 10 (réseau Data)
+
+Kea n’attribue pas de VLAN aux clients : il attribue des adresses IP. Le **réseau** `10.X.Y.0/24` correspond au **VLAN 10 Data**. Les clients qui obtiennent une IP dans cette plage sont donc bien sur le VLAN 10.
+
+#### 1. Vérifier la configuration Kea
+
+Le scope DHCP doit correspondre au réseau VLAN 10 :
+
+```bash
+grep -A5 '"subnet4"' /etc/kea/kea-dhcp4.conf
+```
+
+Résultat attendu : `"subnet": "10.X.Y.0/24"` — c’est le réseau Data (VLAN 10).
+
+#### 2. Vérifier l’interface d’écoute
+
+```bash
+grep -A2 'interfaces-config' /etc/kea/kea-dhcp4.conf
+```
+
+- Si la VM DNS/DHCP a une **interface physique** sur le VLAN 10 (port-group non tagué) : `"interfaces": [ "eth0" ]` (ou `enp0s3`, etc.).
+- Si la VM utilise une **sous-interface VLAN** : `"interfaces": [ "eth0.10" ]` (ou `enp0s3.10`).
+
+Kea doit écouter sur l’interface qui reçoit le trafic des clients VLAN 10.
+
+#### 3. Vérifier les baux attribués
+
+```bash
+# Fichier des baux (chemin par défaut)
+sudo cat /var/lib/kea/kea-leases4.csv
+
+# Ou via le socket de contrôle
+echo '{ "command": "lease4-get-all" }' | sudo socat UNIX-CONNECT:/run/kea/kea4-ctrl-socket -
+```
+
+Les adresses attribuées doivent être dans `10.X.Y.10` à `10.X.Y.99` (plage du pool).
+
+#### 4. Test depuis un client (client_XY)
+
+```bash
+# Sur client_XY, forcer un renouvellement
+sudo dhclient -r enp0s3.10
+sudo dhclient enp0s3.10
+
+# Vérifier l’IP obtenue
+ip addr show enp0s3.10
+```
+
+L’IP doit être dans `10.X.Y.0/24` avec passerelle `10.X.Y.254` — ce qui confirme que le client est bien servi par le scope VLAN 10 (Data).
+
 ---
 
 ### IV.2 Kea DHCP (JSON)
@@ -759,8 +868,8 @@ sudo journalctl -u proftpd -f
 
 1. Vérifier la recherche LDAP depuis le serveur FTP :
    ```bash
-   ldapsearch -x -H ldap://1127.0.0.1 -b "dc=x,dc=lab,dc=local" -W -D "uid=admin,ou=people,dc=x,dc=lab,dc=local" "(uid=admin)"
-   ldapsearch -x -H ldap://1127.0.0.1 -s base -b "" namingContexts
+   ldapsearch -x -H ldap://127.0.0.1 -b "dc=x,dc=lab,dc=local" -W -D "uid=admin,ou=people,dc=x,dc=lab,dc=local" "(uid=admin)"
+   ldapsearch -x -H ldap://127.0.0.1 -s base -b "" namingContexts
 
    ```
 2. Tester une connexion FTP/FTPS depuis `client_XY`.
@@ -919,12 +1028,12 @@ Dans Zabbix :
 
 ### V.2 Tests de connectivité IP
 
-1. **Intra-VLAN Data (même X, Y différents)**
-   - Depuis `PC_XY`, ping un autre PC Data du même groupe (si disponible).
+1. **Intra-VLAN Management (même X, Y différents)**
+   - Depuis `PC_XY` (VLAN 20), ping le SVI du switch `10.X.2Y.253` ou un autre PC du même groupe.
    - Résultat attendu : **Ping OK**.
 
 2. **Inter-VLAN via routage**
-   - Depuis `PC_XY` (VLAN 10), ping une IP de Management (VLAN 20) autorisée (par ex. SVI du switch ou serveur).
+   - Depuis `PC_XY` (VLAN 20 Mgmt), ping une VM Data (ex. `10.X.Y.1`) ou le client `client_XY`.
    - Résultat attendu : **Ping OK**, tracé montrant passage par `R_XY`.
 
 3. **Accès à Internet via ASA**
