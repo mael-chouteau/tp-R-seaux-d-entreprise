@@ -317,7 +317,7 @@ write memory
 
 #### III.2.3 Configuration OSPF
 
-Objectif : annoncer les réseaux Data, Mgmt et Transit dans une **même area OSPF** (par exemple area 0).
+Objectif : annoncer le réseau Data et le Transit dans OSPF. **Le réseau Management (VLAN 20) n’est pas annoncé** : il reste interne au routeur et ne doit pas être visible des autres élèves.
 
 ```plaintext
 configure terminal
@@ -325,18 +325,67 @@ configure terminal
 router ospf 1
  router-id 1.X.Y.Y      ! à adapter (exemple)
  network 10.X.Y.0 0.0.0.255 area 0
- network 10.X.2Y.0 0.0.0.255 area 0
  network 172.16.X.0 0.0.0.255 area 0
 
 end
 write memory
 ```
 
+> **Important** : on n’annonce **pas** `10.X.2Y.0/24` (Mgmt) dans OSPF — ce réseau reste local.
+
 > **Troubleshooting OSPF**
 > - Vérifier les voisins : `show ip ospf neighbor`.
 > - Vérifier la table de routage : `show ip route ospf`.
 > - En cas d’absence de routes, vérifier **wildcards** et masques : le `network 172.16.X.0 0.0.0.255 area 0` doit correspondre exactement au réseau utilisé sur l’interface.
 > - Ne pas oublier `no shutdown` sur les interfaces physiques et sous-interfaces.
+
+#### III.2.4 Isolation des VLANs et confinement du Management (ACL)
+
+Objectifs :
+
+- **VLAN 20 (Management)** : reste interne, ne sort pas vers le transit ni les réseaux des autres élèves.
+- **VLAN 10 (Data)** : peut communiquer avec le transit et les autres élèves.
+- **VLAN 10 ↔ VLAN 20** : aucun trafic autorisé entre les deux.
+
+```plaintext
+configure terminal
+
+! ACL : bloquer VLAN 10 vers VLAN 20
+ip access-list extended BLOCK_DATA_TO_MGMT
+ deny   ip 10.X.Y.0 0.0.0.255 10.X.2Y.0 0.0.0.255
+ permit ip any any
+
+! ACL : bloquer VLAN 20 vers VLAN 10
+ip access-list extended BLOCK_MGMT_TO_DATA
+ deny   ip 10.X.2Y.0 0.0.0.255 10.X.Y.0 0.0.0.255
+ permit ip any any
+
+! ACL : empêcher le trafic Mgmt de sortir vers le transit
+ip access-list extended BLOCK_MGMT_TO_TRANSIT
+ deny   ip 10.X.2Y.0 0.0.0.255 any
+ permit ip any any
+
+! Appliquer sur les sous-interfaces (trafic entrant depuis le switch)
+interface FastEthernet0/0.10
+ ip access-group BLOCK_DATA_TO_MGMT in
+
+interface FastEthernet0/0.20
+ ip access-group BLOCK_MGMT_TO_DATA in
+
+! Appliquer sur l'interface Transit (trafic sortant vers les autres routeurs)
+interface FastEthernet0/1
+ ip access-group BLOCK_MGMT_TO_TRANSIT out
+
+end
+write memory
+```
+
+> **Résumé** :
+> - Les équipements du VLAN 20 (PC, SVI switch) ne peuvent pas joindre le VLAN 10 ni le transit.
+> - Les équipements du VLAN 10 ne peuvent pas joindre le VLAN 20.
+> - Le VLAN 10 peut accéder au transit et aux réseaux des autres élèves (Data annoncé en OSPF).
+
+> **Troubleshooting** : `show ip access-lists` pour vérifier les ACL ; `show ip interface` pour voir les ACL appliquées.
 
 ---
 
@@ -936,7 +985,7 @@ Une fois la VM démarrée :
    Les services doivent être en état `active (running)` ou équivalent.
 
 3. **Accéder à l’interface Web**  
-   Depuis un navigateur sur `client_XY` ou `PC_XY` :
+   Depuis un navigateur sur `client_XY` (VLAN 10) :
    - URL : `http://10.X.Y.2/zabbix`
    - Identifiants par défaut :
      - Utilisateur : `Admin`  (attention à la majuscule)
@@ -1032,16 +1081,21 @@ Dans Zabbix :
    - Depuis `PC_XY` (VLAN 20), ping le SVI du switch `10.X.2Y.253` ou un autre PC du même groupe.
    - Résultat attendu : **Ping OK**.
 
-2. **Inter-VLAN via routage**
-   - Depuis `PC_XY` (VLAN 20 Mgmt), ping une VM Data (ex. `10.X.Y.1`) ou le client `client_XY`.
+2. **Isolation VLAN 10 / VLAN 20 (ACL)**
+   - Depuis `PC_XY` (VLAN 20), ping une VM Data (ex. `10.X.Y.1`) → **doit échouer** (ACL).
+   - Depuis `client_XY` (VLAN 10), ping le SVI Mgmt `10.X.2Y.253` → **doit échouer** (ACL).
+
+3. **VLAN 10 vers transit et autres élèves**
+   - Depuis `client_XY` (VLAN 10), ping une VM Data d'un autre élève ou le Core.
    - Résultat attendu : **Ping OK**, tracé montrant passage par `R_XY`.
 
-3. **Accès à Internet via ASA**
-   - Depuis `PC_XY`, ping une IP publique autorisée (ex. `8.8.8.8` ou cible labo).
+4. **Accès à Internet via ASA**
+   - Depuis `client_XY` (VLAN 10), ping une IP publique autorisée (ex. `8.8.8.8` ou cible labo).
    - Résultat attendu : **Ping OK**, NAT visible sur ASA (`show xlate`).
+   - > Le `PC_XY` (VLAN 20 Mgmt) n'a pas accès Internet (réseau interne).
 
-4. **Routage inter-élèves (optionnel)**
-   - Tester un ping / traceroute d’un PC d’un étudiant à un autre PC d’étudiant (autre Y, même X ou autre X) si la politique de routage le permet.
+5. **Routage inter-élèves (optionnel)**
+   - Tester un ping / traceroute depuis `client_XY` vers une VM d’un autre étudiant (autre Y, même X ou autre X).
 
 ---
 
@@ -1052,7 +1106,7 @@ Dans Zabbix :
   - Sur le serveur, vérifier les logs Kea (fichier de leases ou `journalctl`) pour voir la requête.
 
 - **DNS (Bind9)** :
-  - Depuis `PC_XY` ou la VM, lancer :
+  - Depuis `client_XY` ou une VM Data, lancer :
     - `dig srv.x.lab.local`
     - `dig core.x.lab.local`
     - `dig -x 10.X.Y.1`
@@ -1063,48 +1117,13 @@ Dans Zabbix :
   - Tester la connexion avec un compte admin, lister les utilisateurs, vérifier la présence des OU et des comptes de test.
 
 - **ProFTPD** :
-  - Depuis `PC_XY`, se connecter en FTP (ou FTPS) avec un compte LDAP.
+  - Depuis `client_XY` (VLAN 10), se connecter en FTP (ou FTPS) avec un compte LDAP.
   - Effectuer un upload / download de fichier et vérifier les logs ProFTPD.
 
 - **Zabbix 7.4.6** :
   - Vérifier l’accès web à `http://10.X.Y.2/zabbix`.
   - Vérifier que les 5 hôtes minimum (`R_XY`, `SW_XY`, `dnsdhcp_XY`, `ftpldap_XY`, `client_XY`) sont en état "Enabled/Available".
   - Produire une capture de l’écran "Latest data" et au moins un graphe (CPU VM ou interface réseau Cisco).
-
----
-
-## VI. Grille d’évaluation (barème sur 20)
-
-> **Objectif** : disposer de critères clairs, techniques, et vérifiables.
-> Les points peuvent être ajustés par l’enseignant selon la durée et la profondeur souhaitées.
-
-### 1. Topologie & adressage (4 pts)
-
-- **(2 pts)** : Plan d’adressage complet, cohérent, respectant les variables \(X\) et \(Y\) (Data, Mgmt, Transit).
-- **(2 pts)** : Documentation des schémas (logique + physique) et correspondances interfaces/ports.
-
-### 2. Configuration L2/L3 Cisco & OSPF (6 pts)
-
-- **(2 pts)** : VLANs, ports access, trunks correctement configurés (2960).
-- **(2 pts)** : Sous-interfaces dot1Q et IP correctement configurées (2800).
-- **(2 pts)** : OSPF fonctionnel (adjacences stables, routes correctes).
-
-### 3. ASA & sécurité (4 pts)
-
-- **(2 pts)** : Interfaces ASA correctly configurées (inside/outside, IP, security-level, routes).
-- **(2 pts)** : NAT fonctionnel permettant un accès "Internet" depuis les LANs internes.
-
-### 4. Services Kea / Bind9 / LLDAP / ProFTPD / Zabbix (6 pts)
-
-- **(2 pts)** : Kea & Bind9 opérationnels (clients obtiennent IP + résolution de noms OK).
-- **(2 pts)** : LLDAP & ProFTPD intégrés (auth LDAP fonctionnelle, tests FTP concluants).
-- **(2 pts)** : Zabbix opérationnel (appliance déployée, hôtes de l’étudiant supervisés, métriques visibles).
-
-### Pénalités / bonus
-
-- **Bonus possibles** :
-  - +1 pt pour documentation particulièrement soignée (diagrammes, runbook).
-  - +1 pt pour mise en place d’éléments supplémentaires justifiés (Routage inter entreprises).
 
 ---
 
