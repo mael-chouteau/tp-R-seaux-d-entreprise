@@ -282,17 +282,7 @@ ss -tulnp | grep zabbix
 
 ---
 
-## 9. Rapport
-
-- [ ] Fiche de plan d’adressage (tableaux complétés)
-- [ ] Extraits de configs Cisco/ASA (commentés)
-- [ ] Extraits Kea, Bind9, LLDAP, ProFTPD, Zabbix (commentés)
-- [ ] Recette de tests (commandes + résultats)
-- [ ] Conclusions
-
----
-
-## 10. Commandes de vérification rapide
+## 9. Commandes de vérification rapide
 
 | Équipement | Commande                                                                            |
 | ---------- | ----------------------------------------------------------------------------------- |
@@ -304,15 +294,3 @@ ss -tulnp | grep zabbix
 | LLDAP      | `ss -tulnp \| grep lldap` (ports 3890, 17170)                                       |
 | ProFTPD    | `sudo systemctl status proftpd`                                                     |
 | Zabbix     | `http://10.X.Y.2/zabbix`                                                            |
-
----
-
-## Grille d’évaluation (barème sur 20)
-
-| Critère                                         | Points | Validé |
-| ----------------------------------------------- | ------ | ------ |
-| Topologie & adressage                           | 4      |        |
-| Configuration L2/L3 Cisco & OSPF                | 6      |        |
-| ASA & sécurité                                  | 4      |        |
-| Services Kea / Bind9 / LLDAP / ProFTPD / Zabbix | 6      |        |
-| **Total**                                       | **20** |        |
